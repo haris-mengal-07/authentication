@@ -1,0 +1,60 @@
+// auth-module/authRoutes.js
+import express from 'express';
+import crypto from 'crypto';
+import fs from 'fs/promises';
+
+export const createAuthRouter = (usersFilePath, sessionStore) => {
+    const router = express.Router();
+
+    const readUsers = async () => {
+        try {
+            const data = await fs.readFile(usersFilePath, 'utf8');
+            return JSON.parse(data);
+        } catch (error) {
+            return [];
+        }
+    };
+
+    const writeUsers = async (data) => {
+        await fs.writeFile(usersFilePath, JSON.stringify(data, null, 2));
+    };
+
+    // Register Route
+    router.post('/register', async (req, res) => {
+        const { email, password } = req.body;
+        const users = await readUsers();
+        // Plain text password store ho raha hai (NOT SAFE!)
+        const newUser = { id: crypto.randomUUID(), email, password };
+        users.push(newUser);
+        await writeUsers(users);
+        res.status(201).json({ message: 'User registered' });
+    });
+
+    // Login Route
+    router.post('/login', async (req, res) => {
+        const { email, password } = req.body;
+        const users = await readUsers();
+        const user = users.find(u => u.email === email && u.password === password);
+
+        if (user) {
+            const sessionId = crypto.randomBytes(16).toString('hex');
+            sessionStore[sessionId] = { user: { id: user.id, email: user.email } };
+            res.cookie('sessionId', sessionId, { httpOnly: true, maxAge: 3600000 }); // 1 ghanta
+            res.json({ message: 'Login successful' });
+        } else {
+            res.status(401).json({ message: 'Invalid credentials' });
+        }
+    });
+
+    // Logout Route
+    router.post('/logout', (req, res) => {
+        const sessionId = req.cookies.sessionId;
+        if (sessionId) {
+            delete sessionStore[sessionId];
+        }
+        res.clearCookie('sessionId');
+        res.json({ message: 'Logged out' });
+    });
+
+    return router;
+};
