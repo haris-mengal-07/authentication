@@ -1,0 +1,12 @@
+// auth-module/authMiddleware.js
+export const createAuthMiddleware = (sessionStore) => {
+    return (req, res, next) => {
+        const sessionId = req.cookies.sessionId;
+        if (sessionId && sessionStore[sessionId]) {
+            req.user = sessionStore[sessionId].user; // User ki info request mein add karein
+            next();
+        } else {
+            res.status(401).json({ message: 'Unauthorized: Access Denied' });
+        }
+    };
+};
